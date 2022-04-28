@@ -4,11 +4,15 @@ import pandas as pd
 import numpy as np
 from D_Heuristics import Heuristics
 import multiprocessing
-from itertools import product
+from collections import Counter
+from itertools import chain
+from numpy.lib.stride_tricks import sliding_window_view
+
+
 
 class Evaluation:
 
-    def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls, trans_penalty = 5):
+    def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls):
         self.adjList = {}  # To store graph: u -> (v,w)
         self.link_s = link_s # string variable, source column name
         self.link_t = link_t # string variable, target column name
@@ -19,8 +23,9 @@ class Evaluation:
         self.demand_w = demand_w # (string) travel demand column name
         self.demand_df = demand_df.astype({self.demand_s:str, self.demand_t:str})
         self.route_ls = route_ls
-        self.trans_penalty = trans_penalty
-        self.un_penalty = 50 + 24.74
+        self.nodes_in_routes = None
+        # self.trans_penalty = trans_penalty
+        # self.un_penalty = 50 + 24.74
 
     def graph_from_routes(self):
         route_id = 0
@@ -33,45 +38,26 @@ class Evaluation:
 
             route_id += 1
 
-    def _make_twin_node(self, node, second_node, edge_weight, route):
-            node_twin = str(route) + "_" + str(node)
-            self.adjList[node_twin] = [(second_node, edge_weight, route)]
-            self.adjList[v] = [(u_twin, w, r)]
-            self.adjList[u_twin].append((u, self.trans_penalty, r))
-            self.adjList[u].append((u_twin, self.trans_penalty, r))
-
     def _add_edge(self, u, v, w, r):
         #  Edge going from node u to v and v to u with weight w
         # u (w)-> v, v (w) -> u
-        # Check if u already in graph and if it's new u from another transit route
-        if (u in self.adjList.keys()) and (v in self.adjList.keys()) and (r not in [each[2] for each in self.adjList[u]]) and (r not in [each[2] for each in self.adjList[v]]):
-            u_twin = str(r) + "_" + str(u)
-        if (u in self.adjList.keys()) and (r not in [each[2] for each in self.adjList[u]]) :
-            u_twin = str(r) + "_" + str(u)
-            self.adjList[u_twin] = [(v, w, r)]
-            self.adjList[v] = [(u_twin, w, r)]
-            self.adjList[u_twin].append((u, self.trans_penalty, r))
-            self.adjList[u].append((u_twin, self.trans_penalty, r))
-            
-        elif (u in self.adjList.keys()) and (v in self.adjList.keys()):
+        # Check if u already in graph
+        if u in self.adjList.keys():
             self.adjList[u].append((v, w, r))
-            self.adjList[v].append((u, w, r))
-        elif (u in self.adjList.keys()) and (v not in self.adjList.keys()):
-            self.adjList[u].append((v, w, r))
-            self.adjList[v] = [(u, w, r)]
-        elif (u not in self.adjList.keys()) and (v in self.adjList.keys()):
-            self.adjList[u] = [(v, w, r)]
-            self.adjList[v].append((u, w, r))
+            # self.adjList[v].append((u, w, r))
         else:
             self.adjList[u] = [(v, w, r)]
+
+        if v in self.adjList.keys():
+            self.adjList[v].append((u, w, r))
+            # self.adjList[v].append((u, w, r))
+        else:
             self.adjList[v] = [(u, w, r)]
 
-    
     def djikstra(self, s, e):
         vis = {key: False for key in self.adjList.keys()}
         prev = {key: None for key in self.adjList.keys()}
         dist = {key: None for key in self.adjList.keys()}  # init distance table
-        passed_routes = {key: None for key in self.adjList.keys()} # store routes passed by a shortest path
         dist[s] = 0
         pq_key = np.array([s]) #init priority queue
         pq_value = np.array([0])
@@ -92,45 +78,45 @@ class Evaluation:
                 if (dist[each_neighbor] == None) or (newDist < dist[each_neighbor]):
                     prev[each_neighbor] = index
                     dist[each_neighbor] = newDist
-                    passed_routes[each_neighbor] = each_tuple[2] # add route_id to the dict of tuples
                     pq_key = np.append(pq_key, each_neighbor)
                     pq_value = np.append(pq_value, newDist)
-            
             if index == e:
                 break
-        return (dist[e], prev, passed_routes)
+        return (dist, prev)
+
+    def _same_route_counter(self, path):
+        """
+        count the largest possible number of repeated routes in a path
+        """
+        alter_route_ls = []
+        for each_pair in sliding_window_view(np.array(path), window_shape=2):
+            alter_route_ls.append([each[2] for each in self.adjList[each_pair[0]] if each[0] == each_pair[1]])
+        
+        counter = Counter(chain.from_iterable(alter_route_ls))
+
+        return counter.most_common(1)[0][1] # return the largest number of repeated routes
+
+    def _flatten(self, potential_list): 
+        new_list = [] 
+        for e in potential_list: 
+            if isinstance(e, list): 
+                new_list.extend(self._flatten(e)) 
+            else: 
+                new_list.append(e) 
+        return new_list
 
     def findShortestPath(self, s, e):
         path = []
-        routes = []
-        # find lists of virtual (twin) stops fo nodes s and e
-        s_vir_ls = [each[0] for each in self.adjList[s] if each[0].endswith('_'+s)]
-        e_vir_ls = [each[0] for each in self.adjList[e] if each[0].endswith('_'+e)]
-        s_vir_ls.append(s)
-        e_vir_ls.append(e)
-        # a list of unpacked results, including distance(dist), prev(previous stop list) and a list of routes bus stops belonged to.
-        unpacked_ls = []
-        alter_ODpair_ls = [] # all feasible paths
-        for each_ODpair in list(product(s_vir_ls, e_vir_ls)):
-            each_unpacked = self.djikstra(each_ODpair[0], each_ODpair[1])
-            if each_unpacked[0] == None: continue
-            unpacked_ls.append(each_unpacked)
-            alter_ODpair_ls.append(each_ODpair)
-        
-        if len(unpacked_ls) > 0:
-            chosen_pair = np.argmin([each[0] for each in unpacked_ls])
-            dist, prev, passed_routes = unpacked_ls[chosen_pair]
-            s, e = alter_ODpair_ls[chosen_pair]
-        else: return path
-
+        if (s not in self.nodes_in_routes) or (e not in self.nodes_in_routes): return path
+        dist, prev = self.djikstra(s, e)
+        if dist[e] == None: return path
         at = e
         while at != None:
             path.append(at)
-            routes.append(passed_routes[at])
             at = prev[at]
         path.reverse()
-        routes.reverse()
-        return (dist[e], path, routes)
+        num_transfer = len(path) - self._same_route_counter(path) - 1
+        return (dist[e], path, num_transfer)      
 
 def multi_eval(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls):
 
@@ -146,6 +132,9 @@ def multi_eval(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, d
         fitness_ls, num_d0_ls, num_d1_ls, num_d2_ls, num_dun_ls = zip(*pool.map(fitness, params))
         pool.close()
         pool.join()
+    
+    total_demand = demand_df[demand_w].sum()
+    return sum(fitness_ls) / total_demand, sum(num_d0_ls) / total_demand, sum(num_d1_ls) / total_demand, sum(num_d2_ls) / total_demand, sum(num_dun_ls) / total_demand
 
 def single_eval(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls):
     
@@ -153,11 +142,14 @@ def single_eval(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, 
 
     params = [link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls]
 
-    fitness(params)
-        
+    total_costs, num_d0, num_d1, num_d2, num_dun = fitness(params)
+    total_demand = demand_df[demand_w].sum()
+    
+    return  total_costs / total_demand, num_d0 / total_demand, num_d1 / total_demand, num_d2 / total_demand, num_dun / total_demand
 
 def fitness(params):
-    
+    trans_penalty = 5
+    un_penalty = 50 + 24.74
     total_travel_cost = 0
     num_d0 = 0
     num_d1 = 0
@@ -168,15 +160,34 @@ def fitness(params):
     eval = Evaluation(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
     eval.graph_from_routes()
 
+    # collapse a list of lists to cgheck if s and e in route_ls
+    nodes_in_routes = np.unique(np.array(eval._flatten(route_ls)))
+
+    eval.nodes_in_routes = nodes_in_routes
+
     for each in eval.demand_df[[eval.demand_s,eval.demand_t,eval.demand_w]].values:
+        
         unpacked = eval.findShortestPath(each[0], each[1])
         if len(unpacked) == 0:
             num_dun += each[2]
+            total_travel_cost += each[2] * un_penalty
             continue
-        unit_cost, path, routes = unpacked
-
-        np.unique(routes)
+        unit_cost, path, num_transfer = unpacked
         
+        if num_transfer > 2:
+            num_dun += each[2]
+            total_travel_cost += each[2] * un_penalty
+        elif num_transfer == 2:
+            num_d2 += each[2]
+            total_travel_cost += each[2] * (unit_cost + 2*trans_penalty)
+        elif num_transfer == 1:
+            num_d1 += each[2]
+            total_travel_cost += each[2] * (unit_cost + trans_penalty)
+        else:
+            num_d0 += each[2]
+            total_travel_cost += each[2] * unit_cost
+    
+    return total_travel_cost, num_d0, num_d1, num_d2, num_dun
         
         
 if __name__ == '__main__':
@@ -188,9 +199,20 @@ if __name__ == '__main__':
     open_file = open(file_name, "rb")
     route_ls = pickle.load(open_file)
     open_file.close()
+    # with open('Islam_Mumford3_solution.txt', 'rU') as f:
+    #         route_ls = []
+    #         for ele in f:
+    #             line = ele.split('\n')
+    #             route_ls.append([str(each) for each in line[0].split(',')])
 
     link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
 
-    # multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    
+    # ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    print('The ATT for the optimized_route_set is: {}'.format(ATT))
+    print('d0: {}'.format(d0))
+    print('d1: {}'.format(d1))
+    print('d2: {}'.format(d2))
+    print('dun: {}'.format(dun))
+
+    print('The evaluation took %4.3f minutes' % ((time.time() - start) / 60))
