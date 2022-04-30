@@ -9,7 +9,6 @@ from itertools import chain
 from numpy.lib.stride_tricks import sliding_window_view
 
 
-
 class Evaluation:
 
     def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls):
@@ -37,6 +36,7 @@ class Evaluation:
                 self._add_edge(stop_1, stop_2, edge_cost, route_id)
 
             route_id += 1
+        print('#nodes:{}'.format(len(self.adjList.keys())))
 
     def _add_edge(self, u, v, w, r):
         #  Edge going from node u to v and v to u with weight w
@@ -134,6 +134,7 @@ def multi_eval(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, d
         pool.join()
     
     total_demand = demand_df[demand_w].sum()
+
     return sum(fitness_ls) / total_demand, sum(num_d0_ls) / total_demand, sum(num_d1_ls) / total_demand, sum(num_d2_ls) / total_demand, sum(num_dun_ls) / total_demand
 
 def single_eval(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls):
@@ -195,11 +196,11 @@ if __name__ == '__main__':
 
     df_links = pd.read_csv('./data/mumford3_links.txt')
     df_demand = pd.read_csv('./data/mumford3_demand.txt')
-    file_name = 'init_route_sets.pkl'
+    file_name = 'init_route_sets_3.pkl'
     open_file = open(file_name, "rb")
     route_ls = pickle.load(open_file)
     open_file.close()
-    # with open('Islam_Mumford3_solution.txt', 'rU') as f:
+    # with open('Mumford_Mumford3_solution.txt', 'rU') as f:
     #         route_ls = []
     #         for ele in f:
     #             line = ele.split('\n')
@@ -207,12 +208,12 @@ if __name__ == '__main__':
 
     link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
 
-    # ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    print('The ATT for the optimized_route_set is: {}'.format(ATT))
-    print('d0: {}'.format(d0))
-    print('d1: {}'.format(d1))
-    print('d2: {}'.format(d2))
-    print('dun: {}'.format(dun))
+    ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    # ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    print('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
+    print('d0: {:.2f}'.format(d0))
+    print('d1: {:.2f}'.format(d1))
+    print('d2: {:.2f}'.format(d2))
+    print('dun: {:.2f}'.format(dun))
 
     print('The evaluation took %4.3f minutes' % ((time.time() - start) / 60))
