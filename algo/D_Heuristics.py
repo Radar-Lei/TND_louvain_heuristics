@@ -115,9 +115,7 @@ class Heuristics:
         # converted to undirected dataframe
         # demand_df = Heuristics.to_undirected_df(demand_df, source=self.demand_s, target=self.demand_t)
         # demand_df.reset_index(drop=True, inplace=True)
-        # row_loc = 0
 
-        # demand_df = Heuristics.to_undirected_df(self.demand_df, source=self.demand_s, target=self.demand_t)
         while len(route_set) < n_routes:
             if self.normalization:
                 self.norm_demand_df[self.demand_w] = self._normalization(self.demand_df, weight_col_name=self.demand_w)
@@ -169,8 +167,7 @@ class Heuristics:
             if len(one_route) >= l_min:
                 route_set.append(one_route)
                 self._update_demand(one_route)
-            # attention!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            # row_loc += 1
+
             if len(route_set) == 59:
                 print('')
 
