@@ -2,12 +2,12 @@
 
 """ Author: Da Lei (David) greatradar@gmail.com
 
-    Algorithm Name: Eager dijkstra algorithm implementation for generating initial route sets
+    Algorithm Name: A travel-demand based heuristics for generating initial route sets
 
     Main Idea: Weighting edges in road network considering both distances and travel demands, giving preference to nodes which have more 
     passengers traveling to vertices that have already been included in the transit route. 
     
-    type of graph: weighted
+    Keywords: Eager dijkstra algorithm with early stop, heap optimization, travel-demand based cost function, dynamical programming
 """
 import pickle
 import numpy as np
@@ -33,6 +33,9 @@ class Heuristics:
 
         self.undirected = undirected # boolean variable, true for converting directed to undirected
         self.normalization = normalization
+
+        self.norm_demand_df = demand_df.copy(deep=True)
+        self.norm_link_df = link_df.copy(deep=True)
 
     def _add_edge(self, u, v, w):
         #  Edge going from node u to v and v to u with weight w
@@ -69,6 +72,7 @@ class Heuristics:
         #     self.link_df = self.to_undirected_df(self.link_df, source=self.link_s, target=self.link_t)
         for _, row in self.link_df.iterrows():
             self._add_edge(row[self.link_s], row[self.link_t], row[self.link_w])
+        
             
 
     def _node_weight(self, node_id, node_in_route):
@@ -77,7 +81,7 @@ class Heuristics:
         node_in_route: nodes already included in the route.
         """
         # find passenger flows between node_id and node_in_route (dataframe)
-        tmp_flow_df = self.demand_df[((self.demand_df[self.demand_s] == node_id) & (self.demand_df[self.demand_t].isin(node_in_route))) | ((self.demand_df[self.demand_s].isin(node_in_route)) & (self.demand_df[self.demand_t] == node_id))]
+        tmp_flow_df = self.norm_demand_df[((self.norm_demand_df[self.demand_s] == node_id) & (self.norm_demand_df[self.demand_t].isin(node_in_route))) | ((self.norm_demand_df[self.demand_s].isin(node_in_route)) & (self.norm_demand_df[self.demand_t] == node_id))]
         if len(tmp_flow_df) == 0:
             return 1
 
@@ -102,23 +106,26 @@ class Heuristics:
         importance: controlling the relative importance (node weights compared to edge distance)
 
         """
-        if self.normalization:
-            self.demand_df[self.demand_w] = self._normalization(self.demand_df, weight_col_name=self.demand_w)
-            self.link_df[self.link_w] = self._normalization(self.link_df, weight_col_name=self.link_w)
 
         # construct road network
         self._graph_from_pd()
 
         route_set = []
-        demand_df = self.demand_df.sort_values(by=self.demand_w, ascending=False).copy(deep=True) # make sure self.demand_df unchanged
+        # demand_df = self.demand_df.sort_values(by=self.demand_w, ascending=False).copy(deep=True) # make sure self.demand_df unchanged
         # converted to undirected dataframe
-        demand_df = Heuristics.to_undirected_df(demand_df, source=self.demand_s, target=self.demand_t)
-        demand_df.reset_index(drop=True, inplace=True)
-        row_loc = 0
+        # demand_df = Heuristics.to_undirected_df(demand_df, source=self.demand_s, target=self.demand_t)
+        # demand_df.reset_index(drop=True, inplace=True)
+
         while len(route_set) < n_routes:
-            last_source, last_target = demand_df.iloc[row_loc][[self.demand_s, self.demand_t]].values
+            if self.normalization:
+                self.norm_demand_df[self.demand_w] = self._normalization(self.demand_df, weight_col_name=self.demand_w)
+                self.norm_link_df[self.link_w] = self._normalization(self.link_df, weight_col_name=self.link_w)
+
+            
+            last_source, last_target = self.demand_df.loc[self.demand_df[self.demand_w].idxmax(), [self.demand_s, self.demand_t]].values
+            # last_source, last_target = demand_df.iloc[row_loc][[self.demand_s, self.demand_t]].values
             # customized
-            vis = {key: False for key in self.adjList.keys()} 
+            vis = {key: False for key in self.adjList.keys()}
             norm_cost, one_route = self.findShortestPath(last_source, last_target, importance, copy.deepcopy(vis))
             # update visited nodes list using route
             self._update_vis(vis, one_route)
@@ -127,14 +134,18 @@ class Heuristics:
             while len(one_route) < l_max and (trail_1<=3):
                 # find the travel demand dataframe with target node as the new source node.
                 tmp_partial_demand_df = self.demand_df[self.demand_df[self.demand_s] == last_target].sort_values(by=self.demand_w, ascending=False).copy(deep=True)
+                # the target of the route_segment cannot be thoes already in one_route.
                 tmp_partial_demand_df =  tmp_partial_demand_df[~tmp_partial_demand_df[self.demand_t].isin(one_route)]
 
                 # find available new target for the new source node
                 trail_2 = 0
                 while (len(tmp_partial_demand_df) > 0) and (trail_2<=3):
                     
+                    
                     curr_target = self._drop_return(tmp_partial_demand_df, tmp_partial_demand_df[self.demand_w].idxmax())[self.demand_t]
-                    tmp_unpacked = self.findShortestPath(last_target, curr_target, importance, copy.deepcopy(vis))
+                    # curr_target = tmp_partial_demand_df.loc[tmp_partial_demand_df[self.demand_w].idxmax(), [self.demand_t]].values
+                    # find shortest path between last target and current target and compute node weight with one_route as the ex_path
+                    tmp_unpacked = self.findShortestPath(last_target, curr_target, importance, copy.deepcopy(vis), one_route, l_max)
 
                     if len(tmp_unpacked) == 0:
                         trail_2 += 1
@@ -142,25 +153,32 @@ class Heuristics:
 
                     _, one_route_segment  = tmp_unpacked
 
-                    if len(one_route + one_route_segment[1:]) <= l_max:
+                    if len(one_route + one_route_segment) <= l_max:
                         # append segment but remove the last_target from the route segment
-                        one_route += one_route_segment[1:]
+                        one_route += one_route_segment
                         self._update_vis(vis, one_route_segment)
                         tmp_partial_demand_df =  tmp_partial_demand_df[~tmp_partial_demand_df[self.demand_t].isin(one_route)]
-                        last_target = curr_target
+                        last_target = one_route_segment[-1]
                         break
                     trail_2 += 1
+
                 trail_1 += 1
 
             if len(one_route) >= l_min:
                 route_set.append(one_route)
-            
-            # attention!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            row_loc += 1
+                self._update_demand(one_route)
+
+            if len(route_set) == 59:
+                print('')
 
         return route_set
 
-    def djikstra(self, s, e, importance, vis):
+    def _update_demand(self, one_route):
+
+        self.demand_df.drop(self.demand_df[self.demand_df[self.demand_s].isin(one_route) & self.demand_df[self.demand_t].isin(one_route)].index, inplace=True)
+        
+
+    def djikstra(self, s, e, importance, vis, ex_path):
         
         prev = {key: None for key in self.adjList.keys()}
         dist = {key: None for key in self.adjList.keys()}  # init distance table
@@ -180,8 +198,8 @@ class Heuristics:
             for each_tuple in self.adjList[index]:
                 each_neighbor = each_tuple[0] 
                 if vis[each_neighbor]: continue
-                # collect nodes already in route, including start and end terminals.
-                node_in_route = {s,e}.union(prev)
+                # collect nodes already in route, including start and end terminals, also including nodes in ex_path when extending the route.
+                node_in_route = {s,e}.union(prev).union(ex_path)
                 # filter None, need to convert to a list since filter is a generator function.
                 node_in_route = list(filter(None, node_in_route))
                 
@@ -198,9 +216,14 @@ class Heuristics:
                 break
         return (dist, prev)
 
-    def findShortestPath(self, s, e, importance, vis):
-        
-        dist, prev = self.djikstra(s, e, importance, vis)
+    def findShortestPath(self, s, e, importance, vis, ex_path=[], l_max=25):
+        """
+        s - start node
+        e - end node
+        ex_path - path generated by the first-time djikstra, used for computing weights of nodes in augmenting route
+        vis - (dict) recording nodes in ex_path, to avoid loop when augmenting route.
+        """
+        dist, prev = self.djikstra(s, e, importance, vis, ex_path)
         path = []
         if dist[e] == None: return path
         at = e
@@ -208,6 +231,13 @@ class Heuristics:
             path.append(at)
             at = prev[at]
         path.reverse()
+        diff_len = len(ex_path) + len(path) - l_max # 22, 5,25
+        # diff_len - 1 since we need to remove the source of the route_seg (target of the one_route) when extending the route.
+        if (len(ex_path) > 0) and (diff_len - 1) > 0:
+            path = path[1:diff_len+1]
+        elif len(ex_path) > 0:
+            path = path[1:]
+
         return (dist[e], path)
 
 if __name__ == "__main__":
