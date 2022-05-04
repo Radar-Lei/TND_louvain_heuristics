@@ -137,10 +137,7 @@ class Evaluation:
         source_ls = [each_new_key for each_new_key in self.adjList.keys() if each_new_key.endswith('_'+s)]
         target_ls = [each_new_key for each_new_key in self.adjList.keys() if each_new_key.endswith('_'+e)]
         
-        # give preference to od_pairs whose O and D are from the same route.
-        od_pair_ls = [each_od_pair for each_od_pair in list(product(source_ls, target_ls)) if re.split('_',each_od_pair[0])[0] == re.split('_',each_od_pair[0])[0]]
-        if len(od_pair_ls) == 0: # if no such od_pair exists, stick to use the production of source_ls and target_ls
-            od_pair_ls = list(product(source_ls, target_ls))
+        od_pair_ls = list(product(source_ls, target_ls))
 
         last_fitness = float('inf')
         last_path = []
