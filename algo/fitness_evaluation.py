@@ -7,6 +7,7 @@ import multiprocessing
 from collections import Counter
 from itertools import chain, product
 from numpy.lib.stride_tricks import sliding_window_view
+import heapq
 import re
 
 class Evaluation:
@@ -81,39 +82,46 @@ class Evaluation:
         self.adjList = {k: v for d in adjlist_matrix for k, v in d.items()}
 
     def djikstra(self, s, e):
-        vis = {key: False for key in self.adjList.keys()}
-        prev = {key: None for key in self.adjList.keys()}
-        dist = {key: None for key in self.adjList.keys()}  # init distance table
-        dist[s] = 0
-        pq_key = np.array([s]) #init priority queue
-        pq_value = np.array([0])
+        heap = [(0,s,())] # using start node to initialize the heap, [(dist, node, path)]
+        vis = set() # track visited nodes
+        dist = {s:0}
 
-        while len(pq_key) > 0:
-            index_pos, minValue = pq_value.argmin(), pq_value.min()
-            index = pq_key[index_pos]
-            vis[index] = True
-            pq_value = np.delete(pq_value, index_pos)
-            pq_key = np.delete(pq_key, index_pos)
+        while heap:
+            (cost,v1,path) = heapq.heappop(heap)
+            if v1 not in vis:
+                vis.add(v1)
+                path = (v1, path)
+                if v1 == e:
+                    make_path = lambda tup: (*make_path(tup[1]), tup[0]) if tup else ()
+                    path = make_path(path)
+                    num_transfer = self._path_transfer_counter(path)
+                    return (cost, path, num_transfer)
 
-            # if a smaller (compared to the min in pq) value already exists in dist, skip current iteration
-            if dist[index] < minValue: continue
-            for each_tuple in self.adjList[index]:
-                each_neighbor = each_tuple[0]
-                if vis[each_neighbor]: continue
-                newDist = dist[index] + each_tuple[1]
-                if (dist[each_neighbor] == None) or (newDist < dist[each_neighbor]):
-                    prev[each_neighbor] = index
-                    dist[each_neighbor] = newDist
-                    pq_key = np.append(pq_key, each_neighbor)
-                    pq_value = np.append(pq_value, newDist)
-            if index == e:
-                break
-        return (dist, prev)
+                if v1 in self.adjList.keys():
+                    neighbors = self.adjList[v1]
+                else:
+                    neighbors = ()
+
+                for v2, c, route in neighbors:
+                    if v2 in vis: continue
+
+                    if v2 in dist.keys():
+                        prev = dist[v2]
+                    else:
+                        prev = None
+
+                    next = cost + c
+                    if prev is None or next < prev:
+                        dist[v2] = next
+                        heapq.heappush(heap, (next, v2, path))
+
+        return float("inf"), None
 
     def _path_transfer_counter(self, path):
         """
         count the number of transfers in a path
         """
+        
         transfer_counter = 0
         for each_pair in sliding_window_view(np.array(path), window_shape=2):
             if [each[2] for each in self.adjList[each_pair[0]] if each[0] == each_pair[1]][0] == 'transfer':
@@ -208,7 +216,7 @@ def fitness(params):
     eval = Evaluation(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
     eval.graph_from_routes()
     
-
+    
     # collapse a list of lists to check if s and e in route_ls
     nodes_in_routes = np.unique(np.array(eval._flatten(route_ls)))
     
@@ -257,8 +265,8 @@ if __name__ == '__main__':
 
     link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
 
-    ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    # ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    # ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
     print('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
     print('d0: {:.2f}'.format(d0))
     print('d1: {:.2f}'.format(d1))
