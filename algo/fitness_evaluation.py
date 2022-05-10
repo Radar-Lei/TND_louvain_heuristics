@@ -115,7 +115,7 @@ class Evaluation:
                         dist[v2] = next
                         heapq.heappush(heap, (next, v2, path))
 
-        return float("inf"), None
+        return float("inf"), None, None
 
     def _path_transfer_counter(self, path):
         """
@@ -149,21 +149,13 @@ class Evaluation:
 
         last_fitness = float('inf')
         last_path = []
-        # last_transfer_num = float('inf')
+        last_transfer_num = float('inf')
         for each_od_pair in od_pair_ls:
-            path = []
             o, d = each_od_pair
-            dist, prev = self.djikstra(o, d)
-            if dist[d] == None: continue
-            at = d
-            while at != None:
-                path.append(at)
-                at = prev[at]
-            path.reverse()
-            num_transfer = self._path_transfer_counter(path)
-            # dist[d] == last_fitness ---> break the tie if identical fitness but less transfers
-            if dist[d] < last_fitness or (dist[d] == last_fitness and num_transfer < last_transfer_num):
-                last_fitness = dist[d]
+            costs, path, num_transfer = self.djikstra(o, d)
+            
+            if costs < last_fitness or (costs == last_fitness and num_transfer < last_transfer_num):
+                last_fitness = costs
                 last_transfer_num = num_transfer
                 last_path = path
 
@@ -265,8 +257,8 @@ if __name__ == '__main__':
 
     link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
 
-    # ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    # ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
     print('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
     print('d0: {:.2f}'.format(d0))
     print('d1: {:.2f}'.format(d1))
