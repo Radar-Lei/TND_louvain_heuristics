@@ -257,8 +257,8 @@ if __name__ == '__main__':
 
     link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
 
-    ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    # ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    # ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
     print('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
     print('d0: {:.2f}'.format(d0))
     print('d1: {:.2f}'.format(d1))

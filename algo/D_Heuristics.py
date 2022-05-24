@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import copy
 import heapq
+import time
 
 class Heuristics:
     def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, undirected=True, normalization=True):
@@ -179,7 +180,49 @@ class Heuristics:
         
 
     def djikstra(self, s, e, importance, vis, ex_path):
-        
+        # heap = [(0,s,())] # using start node to initialize the heap, [(dist, node, path)]
+        # vis = set()
+        # dist = {s:0}
+
+        # while heap:
+        #     (cost,v1,path) = heapq.heappop(heap)
+        #     if v1 not in vis:
+        #         vis.add(v1)
+        #         path = (v1, path)
+        #         if v1 == e:
+        #             make_path = lambda tup: (*make_path(tup[1]), tup[0]) if tup else ()
+        #             path = make_path(path)
+        #             return (cost, path)
+
+        #         if v1 in self.adjList.keys():
+        #             neighbors = self.adjList[v1]
+        #         else:
+        #             neighbors = ()
+
+        #         for v2, c, route in neighbors:
+        #             if v2 in vis: continue
+
+        #             # collect nodes already in route, including start and end terminals, also including nodes in ex_path when extending the route.
+        #             node_in_route = {s,e}.union(v1).union(ex_path)
+        #             # filter None, need to convert to a list since filter is a generator function.
+        #             node_in_route = list(filter(None, node_in_route))
+        #             # calculate node costs of the two vertices 
+        #             node_weights = (self._node_weight(index, node_in_route) + self._node_weight(each_neighbor, node_in_route)) / 2
+
+
+        #             if v2 in dist.keys():
+        #                 prev = dist[v2]
+        #             else:
+        #                 prev = None
+
+        #             next = cost + c
+        #             if prev is None or next < prev:
+        #                 dist[v2] = next
+        #                 heapq.heappush(heap, (next, v2, path))
+
+        # return float("inf"), None, None
+                    
+
         prev = {key: None for key in self.adjList.keys()}
         dist = {key: None for key in self.adjList.keys()}  # init distance table
         dist[s] = 0
@@ -199,7 +242,7 @@ class Heuristics:
                 each_neighbor = each_tuple[0] 
                 if vis[each_neighbor]: continue
                 # collect nodes already in route, including start and end terminals, also including nodes in ex_path when extending the route.
-                node_in_route = {s,e}.union(prev).union(ex_path)
+                node_in_route = {s,e}.union(prev.values()).union(ex_path)
                 # filter None, need to convert to a list since filter is a generator function.
                 node_in_route = list(filter(None, node_in_route))
                 
@@ -231,6 +274,7 @@ class Heuristics:
             path.append(at)
             at = prev[at]
         path.reverse()
+        # compute the difference between max length limitation and length of path plus extended path 
         diff_len = len(ex_path) + len(path) - l_max # 22, 5,25
         # diff_len - 1 since we need to remove the source of the route_seg (target of the one_route) when extending the route.
         if (len(ex_path) > 0) and (diff_len - 1) > 0:
@@ -241,7 +285,7 @@ class Heuristics:
         return (dist[e], path)
 
 if __name__ == "__main__":
-
+    start_time = time.time()
     df_links = pd.read_csv('./data/mumford3_links.txt')
     df_demand = pd.read_csv('./data/mumford3_demand.txt')
 
@@ -254,4 +298,4 @@ if __name__ == "__main__":
     pickle.dump(route_set, open_file)
     open_file.close()
 
-    print('complete')
+    print('Complete, spent {} seconds'.format(time.time() - start_time))
