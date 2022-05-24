@@ -13,6 +13,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import copy
+import heapq
 
 class Heuristics:
     def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, undirected=True, normalization=True):
@@ -140,7 +141,6 @@ class Heuristics:
                 # find available new target for the new source node
                 trail_2 = 0
                 while (len(tmp_partial_demand_df) > 0) and (trail_2<=3):
-                    
                     
                     curr_target = self._drop_return(tmp_partial_demand_df, tmp_partial_demand_df[self.demand_w].idxmax())[self.demand_t]
                     # curr_target = tmp_partial_demand_df.loc[tmp_partial_demand_df[self.demand_w].idxmax(), [self.demand_t]].values
