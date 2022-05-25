@@ -17,7 +17,7 @@ import heapq
 import time
 
 class Heuristics:
-    def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, undirected=True, normalization=True):
+    def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, undirected=True):
 
         if len(link_df) + len(demand_df) < 2:
             print("Empty dataframe")
@@ -34,7 +34,7 @@ class Heuristics:
         self.demand_df = demand_df.astype({self.demand_s:str, self.demand_t:str})        
 
         self.undirected = undirected # boolean variable, true for converting directed to undirected
-        self.normalization = normalization
+        # self.normalization = normalization
 
         self.norm_demand_df = demand_df.copy(deep=True)
         self.norm_link_df = link_df.copy(deep=True)
@@ -98,14 +98,14 @@ class Heuristics:
         df.drop(index, inplace=True)
         return row
 
-    def RouteSet(self, n_routes, l_min, l_max, importance):
+    def RouteSet(self, n_routes, l_min, l_max, alpha):
 
         """
         n_routes: number of routes constraint
 
         l_min, l_max: number of transit stops constraint
 
-        importance: controlling the relative importance (node weights compared to edge distance)
+        alpha: controlling the relative importance (alpha > 1 put more importance on distance/time cost, alpha < 1 puts more importance on demands)
 
         """
 
@@ -119,16 +119,16 @@ class Heuristics:
         # demand_df.reset_index(drop=True, inplace=True)
 
         while len(route_set) < n_routes:
-            if self.normalization:
-                self.norm_demand_df[self.demand_w] = self._normalization(self.demand_df, weight_col_name=self.demand_w)
-                self.norm_link_df[self.link_w] = self._normalization(self.link_df, weight_col_name=self.link_w)
+            # if self.normalization:
+            #     self.norm_demand_df[self.demand_w] = self._normalization(self.demand_df, weight_col_name=self.demand_w)
+            #     self.norm_link_df[self.link_w] = self._normalization(self.link_df, weight_col_name=self.link_w)
 
             
             last_source, last_target = self.demand_df.loc[self.demand_df[self.demand_w].idxmax(), [self.demand_s, self.demand_t]].values
             # last_source, last_target = demand_df.iloc[row_loc][[self.demand_s, self.demand_t]].values
             # customized
             vis = {key: False for key in self.adjList.keys()}
-            norm_cost, one_route = self.findShortestPath(last_source, last_target, importance, copy.deepcopy(vis))
+            norm_cost, one_route = self.findShortestPath(last_source, last_target, alpha, copy.deepcopy(vis))
             # update visited nodes list using route
             self._update_vis(vis, one_route)
 
@@ -146,7 +146,7 @@ class Heuristics:
                     curr_target = self._drop_return(tmp_partial_demand_df, tmp_partial_demand_df[self.demand_w].idxmax())[self.demand_t]
                     # curr_target = tmp_partial_demand_df.loc[tmp_partial_demand_df[self.demand_w].idxmax(), [self.demand_t]].values
                     # find shortest path between last target and current target and compute node weight with one_route as the ex_path
-                    tmp_unpacked = self.findShortestPath(last_target, curr_target, importance, copy.deepcopy(vis), one_route, l_max)
+                    tmp_unpacked = self.findShortestPath(last_target, curr_target, alpha, copy.deepcopy(vis), one_route, l_max)
 
                     if len(tmp_unpacked) == 0:
                         trail_2 += 1
@@ -168,9 +168,7 @@ class Heuristics:
             if len(one_route) >= l_min:
                 route_set.append(one_route)
                 self._update_demand(one_route)
-
-            if len(route_set) == 59:
-                print('')
+                print("current num of routes: {}".format(len(route_set)))
 
         return route_set
 
@@ -179,101 +177,59 @@ class Heuristics:
         self.demand_df.drop(self.demand_df[self.demand_df[self.demand_s].isin(one_route) & self.demand_df[self.demand_t].isin(one_route)].index, inplace=True)
         
 
-    def djikstra(self, s, e, importance, vis, ex_path):
-        # heap = [(0,s,())] # using start node to initialize the heap, [(dist, node, path)]
-        # vis = set()
-        # dist = {s:0}
+    def djikstra(self, s, e, alpha, vis, ex_path):
+        heap = [(0,s,())] # using start node to initialize the heap, [(dist, node, path)]
+        vis = set()
+        dist = {s:0}
+        prev = []
 
-        # while heap:
-        #     (cost,v1,path) = heapq.heappop(heap)
-        #     if v1 not in vis:
-        #         vis.add(v1)
-        #         path = (v1, path)
-        #         if v1 == e:
-        #             make_path = lambda tup: (*make_path(tup[1]), tup[0]) if tup else ()
-        #             path = make_path(path)
-        #             return (cost, path)
+        while heap:
+            (cost,v1,path) = heapq.heappop(heap)
+            if v1 not in vis:
+                vis.add(v1)
+                path = (v1, path)
+                if v1 == e:
+                    make_path = lambda tup: (*make_path(tup[1]), tup[0]) if tup else ()
+                    path = make_path(path)
+                    return (cost, path)
 
-        #         if v1 in self.adjList.keys():
-        #             neighbors = self.adjList[v1]
-        #         else:
-        #             neighbors = ()
+                if v1 in self.adjList.keys():
+                    neighbors = self.adjList[v1]
+                else:
+                    neighbors = ()
 
-        #         for v2, c, route in neighbors:
-        #             if v2 in vis: continue
+                for v2, c in neighbors: # c is travel time/distance cost between v1 and v2
+                    if v2 in vis: continue
 
-        #             # collect nodes already in route, including start and end terminals, also including nodes in ex_path when extending the route.
-        #             node_in_route = {s,e}.union(v1).union(ex_path)
-        #             # filter None, need to convert to a list since filter is a generator function.
-        #             node_in_route = list(filter(None, node_in_route))
-        #             # calculate node costs of the two vertices 
-        #             node_weights = (self._node_weight(index, node_in_route) + self._node_weight(each_neighbor, node_in_route)) / 2
+                    # collect nodes already in route, including start and end terminals, also including nodes in ex_path when extending the route.
+                    node_in_route = {s,e}.union(prev).union(ex_path)
+                    # filter None, need to convert to a list since filter is a generator function.
+                    node_in_route = list(filter(None, node_in_route))
 
-
-        #             if v2 in dist.keys():
-        #                 prev = dist[v2]
-        #             else:
-        #                 prev = None
-
-        #             next = cost + c
-        #             if prev is None or next < prev:
-        #                 dist[v2] = next
-        #                 heapq.heappush(heap, (next, v2, path))
-
-        # return float("inf"), None, None
+                    if v2 in dist.keys():
+                        prev_costs = dist[v2]
+                    else:
+                        prev_costs = None
+                    # self._node_weight computes travel demands in the current path traversing through the edge between v1 and v2
+                    # and travel demands from v2 to e.
+                    next = cost + alpha * (c / self._node_weight(v2, node_in_route))
+                    if prev_costs is None or next < prev_costs:
+                        dist[v2] = next
+                        heapq.heappush(heap, (next, v2, path))
                     
+                prev.append(v1)
 
-        prev = {key: None for key in self.adjList.keys()}
-        dist = {key: None for key in self.adjList.keys()}  # init distance table
-        dist[s] = 0
-        pq_key = np.array([s]) #init priority queue
-        pq_value = np.array([0])
+        return float("inf"), None
 
-        while len(pq_key) > 0:
-            index_pos, minValue = pq_value.argmin(), pq_value.min()
-            index = pq_key[index_pos]
-            vis[index] = True
-            pq_value = np.delete(pq_value, index_pos)
-            pq_key = np.delete(pq_key, index_pos)
-            
-            # if a smaller (compared to the min in pq) value already exists in dist, skip current iteration
-            if dist[index] < minValue: continue
-            for each_tuple in self.adjList[index]:
-                each_neighbor = each_tuple[0] 
-                if vis[each_neighbor]: continue
-                # collect nodes already in route, including start and end terminals, also including nodes in ex_path when extending the route.
-                node_in_route = {s,e}.union(prev.values()).union(ex_path)
-                # filter None, need to convert to a list since filter is a generator function.
-                node_in_route = list(filter(None, node_in_route))
-                
-                # calculate node costs of the two vertices 
-                node_weights = (self._node_weight(index, node_in_route) + self._node_weight(each_neighbor, node_in_route)) / 2
-                
-                newDist = dist[index] + (1-importance) * each_tuple[1] + importance * node_weights
-                if (dist[each_neighbor] == None) or (newDist < dist[each_neighbor]):
-                    prev[each_neighbor] = index
-                    dist[each_neighbor] = newDist
-                    pq_key = np.append(pq_key, each_neighbor)
-                    pq_value = np.append(pq_value, newDist)
-            if index == e:
-                break
-        return (dist, prev)
 
-    def findShortestPath(self, s, e, importance, vis, ex_path=[], l_max=25):
+    def findShortestPath(self, s, e, alpha, vis, ex_path=[], l_max=25):
         """
         s - start node
         e - end node
         ex_path - path generated by the first-time djikstra, used for computing weights of nodes in augmenting route
         vis - (dict) recording nodes in ex_path, to avoid loop when augmenting route.
         """
-        dist, prev = self.djikstra(s, e, importance, vis, ex_path)
-        path = []
-        if dist[e] == None: return path
-        at = e
-        while at != None:
-            path.append(at)
-            at = prev[at]
-        path.reverse()
+        cost, path = self.djikstra(s, e, alpha, vis, ex_path)
         # compute the difference between max length limitation and length of path plus extended path 
         diff_len = len(ex_path) + len(path) - l_max # 22, 5,25
         # diff_len - 1 since we need to remove the source of the route_seg (target of the one_route) when extending the route.
@@ -282,7 +238,7 @@ class Heuristics:
         elif len(ex_path) > 0:
             path = path[1:]
 
-        return (dist[e], path)
+        return (cost, path)
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -291,7 +247,7 @@ if __name__ == "__main__":
 
     h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
 
-    route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, importance=0.5)
+    route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=0.5)
 
     file_name = 'init_route_sets.pkl'
     open_file = open(file_name, 'wb')
