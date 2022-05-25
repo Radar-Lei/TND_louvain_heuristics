@@ -238,7 +238,7 @@ class Heuristics:
         elif len(ex_path) > 0:
             path = path[1:]
 
-        return (cost, path)
+        return (cost, list(path))
 
 if __name__ == "__main__":
     start_time = time.time()

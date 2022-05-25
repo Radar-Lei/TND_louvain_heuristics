@@ -245,7 +245,7 @@ if __name__ == '__main__':
 
     df_links = pd.read_csv('./data/mumford3_links.txt')
     df_demand = pd.read_csv('./data/mumford3_demand.txt')
-    file_name = 'init_route_sets_3.pkl'
+    file_name = 'init_route_sets.pkl'
     open_file = open(file_name, "rb")
     route_ls = pickle.load(open_file)
     open_file.close()
