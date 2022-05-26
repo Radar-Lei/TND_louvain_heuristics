@@ -42,9 +42,7 @@ class Evaluation:
                     adjList[stop_1] = [[stop_2, edge_cost, route_id]]
                 
                 adjList[stop_2] = [[stop_1, edge_cost, route_id]]
-
-                # adjList[stop_2] = [(stop_1, edge_cost, route_id)]
-                # self._add_edge(stop_1, stop_2, edge_cost, route_id)
+            # adjList_matrix stores
             adjList_matrix.append(adjList)
             route_id += 1
         self._transfer_linker(adjList_matrix)
