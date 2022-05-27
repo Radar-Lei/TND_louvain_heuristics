@@ -90,7 +90,7 @@ class Heuristics:
         if len(tmp_flow_df) == 0:
             return 1
 
-        return tmp_flow_df[self.demand_w].sum()
+        return 1 / (tmp_flow_df[self.demand_w].sum() + 1)
 
     def _update_vis(self, vis, path):
         for each in path:
@@ -210,7 +210,7 @@ class Heuristics:
                         prev_costs = None
                     # self._node_weight computes travel demands in the current path traversing through the edge between v1 and v2
                     # and travel demands from v2 to e.
-                    next = cost + alpha * (c / self._node_weight(v2, node_in_route))
+                    next = cost + alpha * c + (1 - alpha) * self._node_weight(v2, node_in_route)
                     if prev_costs is None or next < prev_costs:
                         dist[v2] = next
                         heapq.heappush(heap, (next, v2, path))
