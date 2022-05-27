@@ -17,7 +17,7 @@ import heapq
 import time
 
 class Heuristics:
-    def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, undirected=True):
+    def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, normalization=True, undirected=True):
 
         if len(link_df) + len(demand_df) < 2:
             print("Empty dataframe")
@@ -34,9 +34,12 @@ class Heuristics:
         self.demand_df = demand_df.astype({self.demand_s:str, self.demand_t:str})        
 
         self.undirected = undirected # boolean variable, true for converting directed to undirected
-        # self.normalization = normalization
 
-        self.norm_demand_df = demand_df.copy(deep=True)
+        if normalization:
+            self.demand_df[self.demand_w] = self._normalization(self.demand_df, weight_col_name=self.demand_w)
+            self.link_df[self.link_w] = self._normalization(self.link_df, weight_col_name=self.link_w)
+
+        self.norm_demand_df = self.demand_df.copy(deep=True)
         self.norm_link_df = link_df.copy(deep=True)
 
     def _add_edge(self, u, v, w):
@@ -87,7 +90,7 @@ class Heuristics:
         if len(tmp_flow_df) == 0:
             return 1
 
-        return 1 / (tmp_flow_df[self.demand_w].sum() + 1)
+        return tmp_flow_df[self.demand_w].sum()
 
     def _update_vis(self, vis, path):
         for each in path:
@@ -138,7 +141,7 @@ class Heuristics:
                     # find shortest path between last target and current target and compute node weight with one_route as the ex_path
                     tmp_unpacked = self.findShortestPath(last_target, curr_target, alpha, one_route, l_max)
 
-                    if len(tmp_unpacked) == 0:
+                    if tmp_unpacked == None:
                         trail_2 += 1
                         continue
 
@@ -158,7 +161,8 @@ class Heuristics:
             if len(one_route) >= l_min:
                 route_set.append(one_route)
                 self._update_demand(one_route)
-                print("current num of routes: {}".format(len(route_set)))
+                # print("current num of routes: {}".format(len(route_set)))
+                print(one_route)
 
         return route_set
 
@@ -170,7 +174,8 @@ class Heuristics:
     def djikstra(self, s, e, alpha, ex_path):
         heap = [(0,s,())] # using start node to initialize the heap, [(dist, node, path)]
         if len(ex_path) > 0:
-            vis = set(ex_path).remove(s)
+            vis = set(ex_path)
+            vis.remove(s)
         else:
             vis = set()
         dist = {s:0}
@@ -223,6 +228,7 @@ class Heuristics:
         vis - (dict) recording nodes in ex_path, to avoid loop when augmenting route.
         """
         cost, path = self.djikstra(s, e, alpha, ex_path)
+        if path == None: return None
         # compute the difference between max length limitation and length of path plus extended path 
         diff_len = len(ex_path) + len(path) - l_max # 22, 5,25
         # diff_len - 1 since we need to remove the source of the route_seg (target of the one_route) when extending the route.
@@ -234,17 +240,22 @@ class Heuristics:
         return (cost, list(path))
 
 if __name__ == "__main__":
-    start_time = time.time()
-    df_links = pd.read_csv('./data/mumford3_links.txt')
-    df_demand = pd.read_csv('./data/mumford3_demand.txt')
 
-    h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
+    alpha_ls = [0.5, 1]
+    for each in range(len(alpha_ls)):
+        start_time = time.time()
+        df_links = pd.read_csv('./data/mumford3_links.txt')
+        df_demand = pd.read_csv('./data/mumford3_demand.txt')
 
-    route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=0.5)
+        h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
 
-    file_name = 'init_route_sets.pkl'
-    open_file = open(file_name, 'wb')
-    pickle.dump(route_set, open_file)
-    open_file.close()
+        alpha = alpha_ls[each]
+        route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=alpha)
 
-    print('Complete, spent {} seconds'.format(time.time() - start_time))
+        file_name = 'init_route_sets_{}.pkl'.format(each)
+        open_file = open(file_name, 'wb')
+        pickle.dump(route_set, open_file)
+        open_file.close()
+
+        print('Complete, spent {} seconds'.format(time.time() - start_time))
+        print('')

@@ -35,6 +35,7 @@ class Evaluation:
             # iterate each_route till the second-to-last node
             for stop_order in range(len(each_route)-1):
                 stop_1, stop_2 = each_route[stop_order], each_route[stop_order+1]
+
                 edge_cost = self.link_df[(self.link_df[self.link_s] == stop_1) & (self.link_df[self.link_t] == stop_2)][self.link_w].values[0]
                 if stop_1 in adjList.keys():
                     adjList[stop_1].append([stop_2, edge_cost, route_id])
@@ -46,7 +47,7 @@ class Evaluation:
             adjList_matrix.append(adjList)
             route_id += 1
         self._transfer_linker(adjList_matrix)
-        print('#nodes:{}'.format(len(self.adjList.keys())))
+        # print('#nodes:{}'.format(len(self.adjList.keys())))
 
     def _transfer_linker(self, adjlist_matrix):
         # a list of tuples denoting repeated stops (transfer stop)
@@ -243,20 +244,27 @@ if __name__ == '__main__':
 
     df_links = pd.read_csv('./data/mumford3_links.txt')
     df_demand = pd.read_csv('./data/mumford3_demand.txt')
-    file_name = 'init_route_sets.pkl'
+    file_name = 'init_route_sets_0.pkl'
+    file_name_2 = 'init_route_sets_1.pkl'
     open_file = open(file_name, "rb")
     route_ls = pickle.load(open_file)
+    route_ls_1 = pickle.load(open(file_name_2, "rb"))
     open_file.close()
-    # with open('Mumford_Mumford3_solution.txt', 'rU') as f:
+
+    # with open('Islam_Mumford3_solution.txt', 'rU') as f:
     #         route_ls = []
     #         for ele in f:
     #             line = ele.split('\n')
     #             route_ls.append([str(each) for each in line[0].split(',')])
+    # df_links['from'] = df_links['from'] - 1
+    # df_links['to'] = df_links['to'] - 1
+    # df_demand['from'] = df_demand['from'] - 1
+    # df_demand['to'] = df_demand['to'] - 1
 
     link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
 
-    # ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
-    ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+    # ATT, d0, d1, d2, dun = single_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
     print('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
     print('d0: {:.2f}'.format(d0))
     print('d1: {:.2f}'.format(d1))
