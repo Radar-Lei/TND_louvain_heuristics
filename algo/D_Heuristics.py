@@ -15,6 +15,7 @@ import pandas as pd
 import copy
 import heapq
 import time
+import multiprocessing
 
 class Heuristics:
     def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, normalization=True, undirected=True):
@@ -239,23 +240,52 @@ class Heuristics:
 
         return (cost, list(path))
 
+
+def single_sol_gen(params):
+    link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, alpha = params
+    h = Heuristics(link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w)
+
+    route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=alpha)
+
+    file_name = 'init_route_sets_{}.pkl'.format(alpha)
+    open_file = open(file_name, 'wb')
+    pickle.dump(route_set, open_file)
+    open_file.close()
+
 if __name__ == "__main__":
+    start_time = time.time()
+    df_links = pd.read_csv('./data/mumford3_links.txt')
+    df_demand = pd.read_csv('./data/mumford3_demand.txt')    
+    cores = multiprocessing.cpu_count() - 2
 
-    alpha_ls = [0.5, 1]
-    for each in range(len(alpha_ls)):
-        start_time = time.time()
-        df_links = pd.read_csv('./data/mumford3_links.txt')
-        df_demand = pd.read_csv('./data/mumford3_demand.txt')
+    alpha_ls = np.linspace(0,1,11)
+    params = []
+    for i in range(len(alpha_ls)):
+        params.append([df_links, df_demand, 'from', 'to', 'travel_time', 'from', 'to', 'demand', alpha_ls[i]])
 
-        h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
+    with multiprocessing.Pool(cores) as pool:
+        pool.map(single_sol_gen, params)
+        pool.close()
+        pool.join()
+        
+    print('Complete, spent {} seconds'.format(time.time() - start_time))
+    print('')        
 
-        alpha = alpha_ls[each]
-        route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=alpha)
+    # alpha_ls = [0.5, 1]
+    # for each in range(len(alpha_ls)):
+    #     start_time = time.time()
+    #     df_links = pd.read_csv('./data/mumford3_links.txt')
+    #     df_demand = pd.read_csv('./data/mumford3_demand.txt')
 
-        file_name = 'init_route_sets_{}.pkl'.format(each)
-        open_file = open(file_name, 'wb')
-        pickle.dump(route_set, open_file)
-        open_file.close()
+    #     h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
 
-        print('Complete, spent {} seconds'.format(time.time() - start_time))
-        print('')
+    #     alpha = alpha_ls[each]
+    #     route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=alpha)
+
+    #     file_name = 'init_route_sets_{}.pkl'.format(each)
+    #     open_file = open(file_name, 'wb')
+    #     pickle.dump(route_set, open_file)
+    #     open_file.close()
+
+    #     print('Complete, spent {} seconds'.format(time.time() - start_time))
+    #     print('')
