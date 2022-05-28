@@ -1,0 +1,12 @@
+Solution with name init_route_sets_0.0.pkl
+The ATT for the optimized_route_set is: 28.79
+d0: 0.43
+d1: 0.55
+d2: 0.02
+dun: 0.00
+Solution with name init_route_sets_0.1.pkl
+The ATT for the optimized_route_set is: 28.32
+d0: 0.45
+d1: 0.54
+d2: 0.02
+dun: 0.00

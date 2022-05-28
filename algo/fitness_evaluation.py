@@ -9,6 +9,8 @@ from itertools import chain, product
 from numpy.lib.stride_tricks import sliding_window_view
 import heapq
 import re
+import glob
+import os
 
 class Evaluation:
 
@@ -238,31 +240,30 @@ def fitness(params):
         
 if __name__ == '__main__':
     start = time.time()
-    alpha_ls = np.linspace(0,1,11)
     df_links = pd.read_csv('./data/mumford3_links.txt')
     df_demand = pd.read_csv('./data/mumford3_demand.txt')
-    for alpha in alpha_ls:
-        file_name = 'init_route_sets_{}.pkl'.format(alpha)
-        open_file = open(file_name, "rb")
-        route_ls = pickle.load(open_file)
-        open_file.close()
+    for file_name in glob.glob('*.pkl'):
+        # file_name = 'init_route_sets_{}.pkl'.format(alpha)
+        with open(os.path.join(os.getcwd(), file_name), 'rb') as f:
+            route_ls = pickle.load(f)
+            # open_file.close()
 
-        link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
-        ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
+            link_s, link_t, link_w, demand_s, demand_t, demand_w = 'from', 'to', 'travel_time', 'from', 'to', 'demand'
+            ATT, d0, d1, d2, dun = multi_eval(df_links, df_demand, link_s, link_t, link_w, demand_s, demand_t, demand_w, route_ls)
 
-        with open('evluation.txt', 'w', encoding='utf-8') as f:
-            f.write('Alpha is {}'.format(alpha))
-            f.write('\n')            
-            f.write('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
-            f.write('\n')
-            f.write('d0: {:.2f}'.format(d0))
-            f.write('\n')
-            f.write('d1: {:.2f}'.format(d1))
-            f.write('\n')
-            f.write('d2: {:.2f}'.format(d2))
-            f.write('\n')
-            f.write('dun: {:.2f}'.format(dun))
-            f.write('\n')
+            with open('evluation.txt', 'a', encoding='utf-8') as f:
+                f.write('Solution with name {}'.format(file_name))
+                f.write('\n')            
+                f.write('The ATT for the optimized_route_set is: {:.2f}'.format(ATT))
+                f.write('\n')
+                f.write('d0: {:.2f}'.format(d0))
+                f.write('\n')
+                f.write('d1: {:.2f}'.format(d1))
+                f.write('\n')
+                f.write('d2: {:.2f}'.format(d2))
+                f.write('\n')
+                f.write('dun: {:.2f}'.format(dun))
+                f.write('\n')
 
     # with open('Islam_Mumford3_solution.txt', 'rU') as f:
     #         route_ls = []
