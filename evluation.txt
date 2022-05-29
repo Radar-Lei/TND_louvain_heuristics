@@ -10,3 +10,57 @@ d0: 0.45
 d1: 0.54
 d2: 0.02
 dun: 0.00
+Solution with name init_route_sets_0.2.pkl
+The ATT for the optimized_route_set is: 28.50
+d0: 0.44
+d1: 0.54
+d2: 0.03
+dun: 0.00
+Solution with name init_route_sets_0.3.pkl
+The ATT for the optimized_route_set is: 28.24
+d0: 0.44
+d1: 0.54
+d2: 0.02
+dun: 0.00
+Solution with name init_route_sets_0.4.pkl
+The ATT for the optimized_route_set is: 28.31
+d0: 0.44
+d1: 0.54
+d2: 0.02
+dun: 0.00
+Solution with name init_route_sets_0.5.pkl
+The ATT for the optimized_route_set is: 28.36
+d0: 0.44
+d1: 0.54
+d2: 0.03
+dun: 0.00
+Solution with name init_route_sets_0.6.pkl
+The ATT for the optimized_route_set is: 28.43
+d0: 0.43
+d1: 0.55
+d2: 0.02
+dun: 0.00
+Solution with name init_route_sets_0.7.pkl
+The ATT for the optimized_route_set is: 28.33
+d0: 0.45
+d1: 0.54
+d2: 0.01
+dun: 0.00
+Solution with name init_route_sets_0.8.pkl
+The ATT for the optimized_route_set is: 28.41
+d0: 0.43
+d1: 0.54
+d2: 0.02
+dun: 0.00
+Solution with name init_route_sets_0.9.pkl
+The ATT for the optimized_route_set is: 28.43
+d0: 0.43
+d1: 0.55
+d2: 0.02
+dun: 0.00
+Solution with name init_route_sets_1.0.pkl
+The ATT for the optimized_route_set is: 28.50
+d0: 0.44
+d1: 0.54
+d2: 0.02
+dun: 0.00
