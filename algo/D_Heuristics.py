@@ -12,10 +12,14 @@
 import pickle
 import numpy as np
 import pandas as pd
-import copy
 import heapq
 import time
-import multiprocessing
+import networkx as nx
+import matplotlib.pyplot as plt
+import geopandas as gpd
+from matplotlib.colors import ListedColormap
+import matplotlib
+
 
 class Heuristics:
     def __init__(self, link_df, demand_df, link_s, link_t, link_w, demand_s, demand_t, demand_w, normalization=True, undirected=True):
@@ -42,6 +46,26 @@ class Heuristics:
 
         self.norm_demand_df = self.demand_df.copy(deep=True)
         self.norm_link_df = link_df.copy(deep=True)
+
+        self.df_nodes = pd.read_csv('./data/mumford3_nodes.txt')
+        self.df_nodes = self.df_nodes.astype({'id':str})
+
+        self.stop_ls_layer = gpd.GeoDataFrame(
+            self.df_nodes, geometry=gpd.points_from_xy(self.df_nodes.lat, self.df_nodes.lon))
+
+        self.stop_ls_layer.set_index('id', inplace=True)
+
+        self.pos_ori = {index: list(value.coords)[0] for index, value in
+                   self.stop_ls_layer.geometry.items()}
+
+        cmap_1 = list(matplotlib.cm.get_cmap('tab20c').colors[:13])
+        cmap_2 = list(matplotlib.cm.get_cmap('tab20b').colors[:])
+        # del cmap_1[3::4]
+        # del cmap_2[3::4]
+        self.cmap = ListedColormap(np.vstack([cmap_1,
+                                        cmap_2]),
+                            name='tab36')
+        
 
     def _add_edge(self, u, v, w):
         #  Edge going from node u to v and v to u with weight w
@@ -118,6 +142,9 @@ class Heuristics:
 
         route_set = []
 
+        plt.ion()
+        fig, ax = plt.subplots( figsize=(7, 7))
+
         while len(route_set) < n_routes:
 
             last_source, last_target = self.demand_df.loc[self.demand_df[self.demand_w].idxmax(), [self.demand_s, self.demand_t]].values
@@ -164,9 +191,59 @@ class Heuristics:
                 self._update_demand(one_route)
                 # print("current num of routes: {}".format(len(route_set)))
                 print(one_route)
+                self._visulization(route_set, fig, ax)
+                
 
         return route_set
 
+    def _visulization(self, route_set, fig, ax):
+
+        max_lat = self.df_nodes.lat
+        max_lon = self.df_nodes.lon
+                # first read the list of bus stop with coordinates
+        G = nx.from_pandas_edgelist(self.demand_df, source='from',
+                                    target='to',
+                                    edge_attr=['demand'], create_using=nx.Graph)
+        nx.set_node_attributes(G, self.pos_ori, 'coord')
+
+        weights = list(map(lambda x: x[-1]['demand'], G.edges(data=True)))
+
+        node_layer = nx.draw_networkx_nodes(G, pos=self.pos_ori, node_color="white",
+                                    ax=ax,
+                                    node_size=50, edgecolors="black",
+                                    linewidths=.5)
+
+        node_layer.set_zorder(10)
+
+        edge_layer = nx.draw_networkx_edges(G, pos=self.pos_ori,
+                                    width=np.array(weights), alpha=0.1618,
+                                    ax=ax)
+
+        edge_layer.set_rasterized(True)
+
+        if len(route_set) > 0:
+            G_path = nx.Graph()
+            edges_path = []
+            for r in route_set:
+                route_edges = [(r[n], r[n + 1]) for n in range(len(r) - 1)]
+                G_path.add_nodes_from(r)
+                G_path.add_edges_from(route_edges)
+                edges_path.append(route_edges)
+
+            nx.set_node_attributes(G_path, self.pos_ori, 'coord')
+            
+        for ctr, edgelist in enumerate(edges_path):
+            if ctr > 32: ctr = ctr - 33
+            nx.draw_networkx_edges(G_path, pos=self.pos_ori, edge_color=self.cmap(ctr), edgelist=edgelist,ax=ax,width=10, alpha=0.5)
+        # drawing updated values
+        fig.canvas.draw()
+    
+        # This will run the GUI event
+        # loop until all UI events
+        # currently waiting have been processed
+        fig.canvas.flush_events()
+        ax.clear()
+        
     def _update_demand(self, one_route):
 
         self.demand_df.drop(self.demand_df[self.demand_df[self.demand_s].isin(one_route) & self.demand_df[self.demand_t].isin(one_route)].index, inplace=True)
@@ -254,38 +331,24 @@ def single_sol_gen(params):
 
 if __name__ == "__main__":
     start_time = time.time()
-    df_links = pd.read_csv('./data/mumford3_links.txt')
-    df_demand = pd.read_csv('./data/mumford3_demand.txt')    
-    cores = multiprocessing.cpu_count() - 2
+    # df_links = pd.read_csv('./data/mumford3_links.txt')
+    # df_demand = pd.read_csv('./data/mumford3_demand.txt')    
 
-    alpha_ls = np.linspace(0,1,11)
-    params = []
-    for i in range(len(alpha_ls)):
-        params.append([df_links, df_demand, 'from', 'to', 'travel_time', 'from', 'to', 'demand', alpha_ls[i]])
+    alpha_ls = [0.3]
+    for each in range(len(alpha_ls)):
+        start_time = time.time()
+        df_links = pd.read_csv('./data/mumford3_links.txt')
+        df_demand = pd.read_csv('./data/mumford3_demand.txt')
 
-    with multiprocessing.Pool(cores) as pool:
-        pool.map(single_sol_gen, params)
-        pool.close()
-        pool.join()
-        
-    print('Complete, spent {} seconds'.format(time.time() - start_time))
-    print('')        
+        h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
 
-    # alpha_ls = [0.5, 1]
-    # for each in range(len(alpha_ls)):
-    #     start_time = time.time()
-    #     df_links = pd.read_csv('./data/mumford3_links.txt')
-    #     df_demand = pd.read_csv('./data/mumford3_demand.txt')
+        alpha = alpha_ls[each]
+        route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=alpha)
 
-    #     h = Heuristics(link_df=df_links, demand_df=df_demand, link_s='from', link_t='to', link_w='travel_time', demand_s='from', demand_t='to', demand_w='demand')
+        file_name = 'init_route_sets_{}.pkl'.format(each)
+        open_file = open(file_name, 'wb')
+        pickle.dump(route_set, open_file)
+        open_file.close()
 
-    #     alpha = alpha_ls[each]
-    #     route_set = h.RouteSet(n_routes=60, l_min=12, l_max=25, alpha=alpha)
-
-    #     file_name = 'init_route_sets_{}.pkl'.format(each)
-    #     open_file = open(file_name, 'wb')
-    #     pickle.dump(route_set, open_file)
-    #     open_file.close()
-
-    #     print('Complete, spent {} seconds'.format(time.time() - start_time))
-    #     print('')
+        print('Complete, spent {} seconds'.format(time.time() - start_time))
+        print('')
