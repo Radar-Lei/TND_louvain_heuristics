@@ -1,31 +1,41 @@
-import matplotlib.pyplot as plt
+import numpy as np
 import time
-
-def insert_sort(lst):
-    lsts = []
-    for i in range(len(lst)):
-        temp = lst[i]
-        j = i-1
-        while j>=0 and lst[j]>temp:
-            lst[j+1] = lst[j]
-            j -= 1
-        lst[j+1] = temp
-        l = lst[:]
-        lsts.append(l)
-    return lsts
-
-
-if __name__ == "__main__":
-    lst = [13,32,42,1,53,4,66,2,5,7,74,23]
-    lsts = insert_sort(lst)
-    plt.ion()#打开交互模式
-    fig = plt.figure()#新建绘图窗口
-    ax  = plt.gca()#获取当前子图
-    bars = ax.bar(range(len(lst)),height=lst)#绘制条形图
-    for l in lsts:
-        print(l)
-        bars.remove()#删除条形图
-        bars = ax.bar(range(len(lst)),height=l)#绘制条形图
-        plt.pause(0.5)
-    while True:#防止图片关闭
-        plt.pause(1)
+import matplotlib.pyplot as plt
+ 
+# creating initial data values
+# of x and y
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+ 
+# to run GUI event loop
+plt.ion()
+ 
+# here we are creating sub plots
+figure, ax = plt.subplots(figsize=(10, 8))
+line1, = ax.plot(x, y)
+ 
+# setting title
+plt.title("Geeks For Geeks", fontsize=20)
+ 
+# setting x-axis label and y-axis label
+plt.xlabel("X-axis")
+plt.ylabel("Y-axis")
+ 
+# Loop
+for _ in range(50):
+    # creating new Y values
+    new_y = np.sin(x-0.5*_)
+ 
+    # updating data values
+    line1.set_xdata(x)
+    line1.set_ydata(new_y)
+ 
+    # drawing updated values
+    figure.canvas.draw()
+ 
+    # This will run the GUI event
+    # loop until all UI events
+    # currently waiting have been processed
+    figure.canvas.flush_events()
+ 
+    time.sleep(0.1)

@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import geopandas as gpd
 from matplotlib.colors import ListedColormap
 import matplotlib
+import matplotlib.ticker as ticker
 
 
 class Heuristics:
@@ -65,6 +66,7 @@ class Heuristics:
         self.cmap = ListedColormap(np.vstack([cmap_1,
                                         cmap_2]),
                             name='tab36')
+        self.init_od_num = len(self.demand_df)
         
 
     def _add_edge(self, u, v, w):
@@ -193,13 +195,12 @@ class Heuristics:
                 print(one_route)
                 self._visulization(route_set, fig, ax)
                 
-
         return route_set
 
     def _visulization(self, route_set, fig, ax):
-
-        max_lat = self.df_nodes.lat
-        max_lon = self.df_nodes.lon
+        # matplotlib.use('agg')
+        max_lat = self.df_nodes.lat.max()
+        max_lon = self.df_nodes.lon.max()
                 # first read the list of bus stop with coordinates
         G = nx.from_pandas_edgelist(self.demand_df, source='from',
                                     target='to',
@@ -235,12 +236,19 @@ class Heuristics:
         for ctr, edgelist in enumerate(edges_path):
             if ctr > 32: ctr = ctr - 33
             nx.draw_networkx_edges(G_path, pos=self.pos_ori, edge_color=self.cmap(ctr), edgelist=edgelist,ax=ax,width=10, alpha=0.5)
+
+        ax.set_xlabel('x coordinate', fontsize=12)
+        ax.set_ylabel('y coordinate', fontsize=12)
+        ax.set_title('Initial routes generations for Mumford3 network\nAddressed direct travel demands: {}'.format(self.init_od_num - len(self.demand_df)), fontsize=14)
         # drawing updated values
-        fig.canvas.draw()
-    
-        # This will run the GUI event
-        # loop until all UI events
-        # currently waiting have been processed
+        # fig.canvas.draw()
+        ax.set_ylim(0, max_lon + 1)
+        ax.set_xlim(0, max_lat+1)
+        ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+        plt.draw()
+        # # This will run the GUI event
+        # # loop until all UI events
+        # # currently waiting have been processed
         fig.canvas.flush_events()
         ax.clear()
         
